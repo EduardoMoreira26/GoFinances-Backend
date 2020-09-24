@@ -1,41 +1,50 @@
-// import AppError from '../errors/AppError';
 import { getCustomRepository, getRepository } from 'typeorm';
 
-import TransactionRepository from '../repositories/TransactionsRepository';
+import AppError from '../errors/AppError';
 
 import Transaction from '../models/Transaction';
 import Category from '../models/Category';
-import AppError from '../errors/AppError';
+import TransactionsRepository from '../repositories/TransactionsRepository';
 
 interface Request {
   title: string;
-  type: 'income' | 'outcome';
   value: number;
+  type: 'income' | 'outcome';
   category: string;
 }
+
 class CreateTransactionService {
-  public async execute({ title, value, type, category }: Request): Promise<Transaction> {
-    const transactionsRepository = getCustomRepository(TransactionRepository);
-    const categoryRepository = getRepository(Category);
+  public async execute({
+    title,
+    value,
+    type,
+    category,
+  }: Request): Promise<Transaction> {
+    const transactionsRepository = getCustomRepository(TransactionsRepository);
+    const categoriesRepository = getRepository(Category);
 
-    const { total } = await transactionsRepository.getBalance();
-
-    if (type === "outcome" && total < value) {
-      throw new AppError("You do not have enough balance");
+    if (!['income', 'outcome'].includes(type)) {
+      throw new AppError('Transaction type is invalid');
     }
 
-    let transactionCategory = await categoryRepository.findOne({
+    let transactionCategory = await categoriesRepository.findOne({
       where: {
         title: category,
       },
     });
 
     if (!transactionCategory) {
-      transactionCategory = categoryRepository.create({
+      transactionCategory = categoriesRepository.create({
         title: category,
       });
 
-      await categoryRepository.save(transactionCategory);
+      await categoriesRepository.save(transactionCategory);
+    }
+
+    const { total } = await transactionsRepository.getBalance();
+
+    if (type === 'outcome' && total < value) {
+      throw new AppError('You do not have enough balance');
     }
 
     const transaction = transactionsRepository.create({
